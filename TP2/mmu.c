@@ -22,12 +22,15 @@ int memoryCacheMapping(int address, Cache* cache) {
         //LRU METHOD (Least Recently Used)
         case 2:
             cache->lines[0].timeOnCache++;
-            for( int i = 1; i < cache->size; i++){
+            for( int i = 0; i < cache->size; i++){
                 
                 cache->lines[i].timeOnCache++;
 
                 if(cache->lines[i].timeOnCache > cache->lines[index].timeOnCache)
                     index = i;
+                
+                if(cache->lines[i].tag == address)
+                    return i;
 
             }
             return index;
@@ -35,15 +38,21 @@ int memoryCacheMapping(int address, Cache* cache) {
 
         //LFU METHOD (Least Frequently Used)
         case 3:
-            for( int i = 1; i < cache->size; i++)
+            for( int i = 0; i < cache->size; i++){
                 if(cache->lines[i].timesUsed < cache->lines[index].timesUsed)
                     index = i;
+
+                if(cache->lines[i].tag == address)
+                    return i;
+            }
+
             return index;
             break;
     }
 
     return address % cache->size;
 }
+
 
 void updateMachineInfos(Machine* machine, Line* line) {
 
@@ -84,7 +93,6 @@ void updateMachineInfos(Machine* machine, Line* line) {
 Line* MMUSearchOnMemorys(Address add, Machine* machine) {
     // Strategy => write back
     
-    // Direct memory map
     int l1pos = memoryCacheMapping(add.block, &machine->l1);
     int l2pos = memoryCacheMapping(add.block, &machine->l2);
     int l3pos = memoryCacheMapping(add.block, &machine->l3);
@@ -94,12 +102,9 @@ Line* MMUSearchOnMemorys(Address add, Machine* machine) {
     Line* cache2 = machine->l2.lines;
     Line* cache3 = machine->l3.lines;
 
-    // adicionar linha da L3
     MemoryBlock* RAM = machine->ram.blocks;
 
     if (cache1[l1pos].tag == add.block) { 
-        /* Block is in memory cache L1 */
-        // ESTÁ FALTANDO TAG E UPDATED ??
         cache1[l1pos].cost = COST_ACCESS_L1;
         cache1[l1pos].cacheHit = 1;
     } else if (cache2[l2pos].tag == add.block) { 
@@ -124,8 +129,8 @@ Line* MMUSearchOnMemorys(Address add, Machine* machine) {
     } else { 
         /* Block only in memory RAM, need to bring it to cache and manipulate the blocks */
         //fazer o mapeamento para decidir quem tirar da ram.
-        l2pos = memoryCacheMapping(cache1[l1pos].tag, &machine->l2); /* Need to check the position of the block that will leave the L1 */
-        l3pos = memoryCacheMapping(cache2[l2pos].tag, &machine->l3); /* Need to check the position of the block that will leave the L1 */
+        // l2pos = memoryCacheMapping(cache1[l1pos].tag, &machine->l2); /* Need to check the position of the block that will leave the L1 */
+        // l3pos = memoryCacheMapping(cache2[l2pos].tag, &machine->l3); /* Need to check the position of the block that will leave the L1 */
 
         
         if (!canOnlyReplaceBlock(cache1[l1pos])) { 
@@ -152,10 +157,8 @@ Line* MMUSearchOnMemorys(Address add, Machine* machine) {
         cache1[l1pos].tag = add.block;
         cache1[l1pos].updated = false;
         cache1[l1pos].cost = COST_ACCESS_L1 + COST_ACCESS_L2 + COST_ACCESS_L3 + COST_ACCESS_RAM;
-
-        //se passa da l1 para a l2 eu deveria zerar ?
-        cache1[l1pos].cacheHit = 4;
         cache1[l1pos].timeOnCache = 0;
+        cache1[l1pos].cacheHit = 4;
 
 
     }

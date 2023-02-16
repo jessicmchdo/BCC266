@@ -13,7 +13,7 @@ A memória cache funciona como uma biblioteca de acesso rápido que existe dentr
 
 \subsection{Especificações do problema}
 
-Para este trabalho prático, deveríamos, a partir dos caches 1 e 2 que foram disponibilizados pelo professor, implementar a memória cache 3, que recebe as informações em cascata das outras.
+Para este trabalho prático, deveríamos, a partir dos caches 1 e 2 que foram disponibilizados pelo professor, implementar a memória cache 3 e fazer a movimentação de dados entre os diferentes tipos de cache.
 \subsection{Considerações Iniciais}
 Algumas ferramentas foram utilizadas durante a criação deste projeto:
 
@@ -46,19 +46,18 @@ A máquina onde o desenvolvimento e os testes foram realizados possui a seguinte
 Para a compilação do projeto, basta digitar:
 
 \begin{tcolorbox}[title=Compilando o projeto,width=\linewidth]
-    gcc main.c -c -Wall -g \newline
-    gcc mmu.c -c -Wall -g \newline
-    gcc memory.c -c -Wall -g \newline
-    gcc instruction.c -c -Wall -g \newline
-    gcc cpu.c -c -Wall -g \newline
-    gcc generator.c -c -Wall -g \newline
+    gcc main.c -c -Wall \newline
+    gcc mmu.c -c -Wall \newline
+    gcc memory.c -c -Wall\newline
+    gcc instruction.c -c -Wall\newline
+    gcc cpu.c -c -Wallnewline
+    gcc generator.c -c -Wall\newline
     gcc main.o mmu.o memory.o instruction.o cpu.o generator.o -o exe -g
 \end{tcolorbox}
 
 Usou-se para a compilação as seguintes opções:
 
 \begin{itemize}
-    \item [-] \emph{-g}: para compilar com informação de depuração e ser usado pelo Valgrind.
     \item [-] \emph{-Wall}: para mostrar todos os possível \emph{warnings} do código.
     \item [-] \emph{-c}: Para compilar o arquivo sem linkar os arquivos para obtermos um arquivo do tipo objeto.
     \item [-] \emph{-o}: Compilar para um arquivo do tipo output $($saída$)$.
@@ -226,44 +225,56 @@ Adicionamos as variáveis timesUsed, do tipo inteiro, para contar quantas vezes 
 
 \subsubsection{memoryCacheMapping}
 
-Modificamos esta função para apresentar o metodo de mapeamento correto (LFU, LRU ou mapeamento direto).
+Essa função é responsável por checar qual tipo de mapeamento estamos utilizando e, dependendo do mapeamento,
+iremos aplicar uma política diferente. No caso do mapeamento direto, retornamos o possível endeeço da cache e a verificação
+de sua existência é feita no MMUSearchOnMemorys. No caso da LRU, percorremos o vetor sempre checando qual endereço está a mais tempo na cache
+e salvando seu índice, caso encontremos o endereço que procuramos retornamos seu índice, se a substituição vai acontecer ou não depende do MMUSearchOnMemorys.
+No LFU acontece a mesma coisa que o LRU, apenas mudando a condição de checagem para o bloco menos usado.
 
 \begin{lstlisting}[caption={Função memoryCacheMapping},label={lst:cod6},language=C]
 
     int memoryCacheMapping(int address, Cache* cache) {
 
-        int index = 0;
+    int index = 0;
 
-        switch(SUBSTITUTION_METHOD){
-            //DIRECT MAPPING
-            case 1:
-                return address % cache->size;
-                break;
-            //LRU METHOD (Least Recently Used)
-            case 2:
-                cache->lines[0].timeOnCache++;
-                for( int i = 1; i < cache->size; i++){
-                    
-                    cache->lines[i].timeOnCache++;
+    switch(SUBSTITUTION_METHOD){
+        //DIRECT MAPPING
+        case 1:
+            return address % cache->size;
+            break;
+        //LRU METHOD (Least Recently Used)
+        case 2:
+            cache->lines[0].timeOnCache++;
+            for( int i = 0; i < cache->size; i++){
+                
+                cache->lines[i].timeOnCache++;
 
-                    if(cache->lines[i].timeOnCache > cache->lines[index].timeOnCache)
-                        index = i;
+                if(cache->lines[i].timeOnCache > cache->lines[index].timeOnCache)
+                    index = i;
+                
+                if(cache->lines[i].tag == address)
+                    return i;
 
-                }
-                return index;
-                break;
+            }
+            return index;
+            break;
 
-            //LFU METHOD (Least Frequently Used)
-            case 3:
-                for( int i = 1; i < cache->size; i++)
-                    if(cache->lines[i].timesUsed < cache->lines[index].timesUsed)
-                        index = i;
-                return index;
-                break;
-        }
+        //LFU METHOD (Least Frequently Used)
+        case 3:
+            for( int i = 0; i < cache->size; i++){
+                if(cache->lines[i].timesUsed < cache->lines[index].timesUsed)
+                    index = i;
 
-        return address % cache->size;
+                if(cache->lines[i].tag == address)
+                    return i;
+            }
+
+            return index;
+            break;
     }
+
+    return address % cache->size;
+}
 
 \end{lstlisting}
 
@@ -476,17 +487,33 @@ Na função memoryCacheMapping, a sua complexidade vai depender do método de ma
 como não percorremos o vetor, já que a posição na cache depende unicamente do final de seu endereço, 
 sua complexidade será $\mathcal{O}(1)$. \\
 
-Na política LRU (CONFERIR), temos duas funções importantes: a primeira
-findOnCache que percorre o vetor para verificar se a cache apresenta o bloco que precisamos, e para essa função teremos $\mathcal{O}(n)$,
-para a segunda função, memoryCacheMapping, também percorremos o vetor para encontrar o bloco que está a mais tempo sem ser utilizado, por isso 
+Na política LRU, na função memoryCacheMapping, percorremos o vetor para encontrar o bloco que está a mais tempo sem ser utilizado, por isso 
 teremos uma complexidade de $\mathcal{O}(n)$. \\
 
-Na política LFU (CONFERIR), temos duas funções importantes: a primeira
-findOnCache que percorre o vetor para verificar se a cache apresenta o bloco que precisamos, e para essa função teremos $\mathcal{O}(n)$,
-para a segunda função, memoryCacheMapping, também percorremos o vetor para encontrar o bloco que está a mais tempo sem ser utilizado, por isso 
+Na política LFU, na memoryCacheMapping, também percorremos o vetor para encontrar o bloco que está a mais tempo sem ser utilizado, por isso 
 teremos uma complexidade de $\mathcal{O}(n)$.
+\clearpage
 
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{mapeamento.png}
+    \caption{Mapeamento Direto}
+    \label{fig:Tabela 1}
+\end{figure}
 
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{lru.png}
+    \caption{LRU}
+    \label{fig:Tabela 2}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{lfu.png}
+    \caption{LFU}
+    \label{fig:Tabela 3}
+\end{figure}
 
 \clearpage
 \section{Conclusão}
